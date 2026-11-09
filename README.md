@@ -55,7 +55,7 @@ hf download --repo-type dataset lansinuote/ChnSentiCorp --local-dir data/ChnSent
 hf download BAAI/bge-small-zh-v1.5 --local-dir models/bge-small-zh-v1.5
 ```
 
-国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可（唯一例外是课后作业的 `data/douban/痴迷*.jsonl`，见 12.2 节）。
+国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可（例外：课后作业的 `data/douban/痴迷*.jsonl` 与 `artifacts/douban/test_predictions.csv`，见 12.2 / 12.4 节）。
 
 ## 5. 换成自己的数据与模型
 
@@ -222,6 +222,9 @@ python webapp.py -c configs/douban.yaml
 ```
 
 `artifacts/douban/metrics.json` 记录 R²、RMSE、MAE、Pearson、Spearman 与最佳参数。
+本次的测试集逐条预测（40 条，`text` / `y_true` / `y_pred`）随 PR 提交在
+`artifacts/douban/test_predictions.csv`，可脱离模型直接核对指标；`embeddings.npz`、
+`model.joblib` 等二进制产物仍不入库。
 
 ### 12.5 任务五：词云面板（中文分词）
 

@@ -14,7 +14,11 @@ data/douban/*
 data/douban/.storage_state.json
 
 # 训练产物
-artifacts/
+artifacts/*
+# 例外：测试集逐条预测随 PR 提交，便于核对指标（embedding、model 等二进制仍不入库）
+!artifacts/douban/
+artifacts/douban/*
+!artifacts/douban/test_predictions.csv
 
 # Python
 __pycache__/
