@@ -55,7 +55,7 @@ hf download --repo-type dataset lansinuote/ChnSentiCorp --local-dir data/ChnSent
 hf download BAAI/bge-small-zh-v1.5 --local-dir models/bge-small-zh-v1.5
 ```
 
-国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可。
+国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可（唯一例外是课后作业的 `data/douban/痴迷*.jsonl`，见 12.2 节）。
 
 ## 5. 换成自己的数据与模型
 
@@ -196,7 +196,11 @@ python scripts/douban_crawler.py crawl --delay 3 --max-pages 25
 产出 `data/douban/痴迷.jsonl`（严格两列 `text` / `score`，可被 `data.py` 直接读入），
 另存 `data/douban/痴迷_raw.jsonl` 保留 `time` / `cid` 便于抽查。
 星级由 `allstar10~50` 换算 1~5；未打分与空文本跳过；按 `cid` 去重；页间随机 sleep 3~4 秒。
-`data/*` 不入库，与仓库「数据不随仓库分发」的约定一致。
+
+这两份语料（394 条）随 PR 一并提交，方便不重爬就能复现训练：
+`.gitignore` 对 `data/*` 放开这两个文件的例外，其余数据、模型权重、训练产物仍不入库。
+语料字段只有 `text` / `score`（原始版另含 `time` / `cid`），不含用户名或账号信息；
+`data/douban/.storage_state.json` 含登录 cookie，被 `.gitignore` 最后一条显式排除，绝不入库。
 
 ### 12.3 任务三：下载 Embedding 模型
 

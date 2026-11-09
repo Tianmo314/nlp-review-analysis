@@ -4,7 +4,13 @@ data/*
 models/*
 !models/.gitkeep
 
-# 豆瓣登录态含 cookie，绝不入库（data/* 已忽略，这里再明示一次）
+# 例外：作业用的短评语料随 PR 提交，便于复现（字段只有 text/score/time/cid，不含账号信息）
+!data/douban/
+data/douban/*
+!data/douban/痴迷.jsonl
+!data/douban/痴迷_raw.jsonl
+
+# 豆瓣登录态含 cookie，绝不入库（写在最后，优先级最高）
 data/douban/.storage_state.json
 
 # 训练产物
