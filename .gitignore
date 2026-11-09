@@ -4,6 +4,9 @@ data/*
 models/*
 !models/.gitkeep
 
+# 豆瓣登录态含 cookie，绝不入库（data/* 已忽略，这里再明示一次）
+data/douban/.storage_state.json
+
 # 训练产物
 artifacts/
 

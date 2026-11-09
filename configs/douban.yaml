@@ -1,0 +1,36 @@
+# 课后作业任务四：豆瓣《痴迷》短评 → 评分（1-5）回归
+# 数据由 scripts/douban_crawler.py 生成：data/douban/痴迷.jsonl（两列 text / score）
+# 用法：python main.py train -c configs/douban.yaml
+task: regression
+
+data:
+  source: local
+  path: data/douban/痴迷.jsonl
+  text_column: text
+  label_column: score
+  # 单文件无划分列，data.py 自动按 8:1:1 随机切分
+  split_column: null
+  max_samples: null
+
+embedding:
+  # 任务三下载到 models/ 的本地权重目录，离线也能跑；换仓库名会自动下载
+  model: models/bge-small-zh-v1.5
+  batch_size: 32
+  # 影评偏长时按字数切块再平均，避免只编码开头；短评多数不足 380 字，不会切块
+  chunk_chars: 380
+
+model:
+  name: ridge
+  param_grid:
+    alpha: [0.1, 1.0, 10.0, 100.0]
+  scoring: null
+  # 评估后用全量数据重训交付模型，指标仍来自留出 test
+  refit_full: true
+
+runtime:
+  device: auto
+  seed: 42
+
+output:
+  # 与分类 / 原回归示例分开存放，互不覆盖
+  dir: artifacts/douban
