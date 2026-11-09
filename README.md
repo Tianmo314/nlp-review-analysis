@@ -55,7 +55,7 @@ hf download --repo-type dataset lansinuote/ChnSentiCorp --local-dir data/ChnSent
 hf download BAAI/bge-small-zh-v1.5 --local-dir models/bge-small-zh-v1.5
 ```
 
-国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可。
+国内网络可先 `export HF_ENDPOINT=https://hf-mirror.com`。`data/`、`models/`、`artifacts/` 均在 `.gitignore` 中，换机器重新下载即可（例外：课后作业的 `data/douban/痴迷*.jsonl` 与 `artifacts/douban/test_predictions.csv`，见 12.2 / 12.4 节）。
 
 ## 5. 换成自己的数据与模型
 
@@ -158,3 +158,112 @@ mypy main.py config.py data.py encoder.py modeling.py webapp.py
 - 示例模型：[`BAAI/bge-small-zh-v1.5`](https://huggingface.co/BAAI/bge-small-zh-v1.5)
 
 仓库不附带数据与权重；公开分发或商用前请自行核对各自的使用条款。
+
+## 12. 课后作业：豆瓣影评 → 评分回归 → 词云工作台
+
+本次在参考项目上做增量开发，选片《痴迷》（Obsession, 2025，豆瓣 subject `37450627`）。
+新增/改动：
+
+| 文件 | 作用 |
+| --- | --- |
+| `scripts/douban_crawler.py` | 有头浏览器登录、保存与复用登录态、按 `start` 翻页抓短评 |
+| `configs/douban.yaml` | 回归配置：`source: local` 指向影评 jsonl，长评设 `chunk_chars` |
+| `wordcloud_utils.py` | jieba 分词 + 停用词 + wordcloud 出图（也能独立用 CLI 导 PNG） |
+| `assets/stopwords.txt` | 中文停用词表，保留「恐怖 / 剧情 / 结局」这类有信息量的实词 |
+| `webapp.py` / `templates/index.html` | 新增 `/api/wordcloud` 与工作台「影评词云」面板 |
+
+新增依赖已写入 `requirements.txt`：`playwright jieba wordcloud pillow`。
+首次使用需装浏览器二进制：`python -m playwright install chromium`。
+
+### 12.1 任务一：登录豆瓣并接管浏览器
+
+```bash
+python scripts/douban_crawler.py login     # 弹出有头 Chrome，由使用者本人登录
+python scripts/douban_crawler.py check     # 复用登录态访问短评页，确认不再跳登录
+```
+
+账号密码只在浏览器里输入，不写进代码、不交给 Agent；登录态落在
+`data/douban/.storage_state.json`（仅本地，`.gitignore` 已排除）。
+`login` 检测到 `dbcl2` cookie 后会在**同一浏览器会话**里打开短评页完成验收；
+`check` 额外打印该 cookie 是否存在。
+
+### 12.2 任务二：抓短评
+
+```bash
+python scripts/douban_crawler.py crawl --delay 3 --max-pages 25
+```
+
+产出 `data/douban/痴迷.jsonl`（严格两列 `text` / `score`，可被 `data.py` 直接读入），
+另存 `data/douban/痴迷_raw.jsonl` 保留 `time` / `cid` 便于抽查。
+星级由 `allstar10~50` 换算 1~5；未打分与空文本跳过；按 `cid` 去重；页间随机 sleep 3~4 秒。
+
+这两份语料（394 条）随 PR 一并提交，方便不重爬就能复现训练：
+`.gitignore` 对 `data/*` 放开这两个文件的例外，其余数据、模型权重、训练产物仍不入库。
+语料字段只有 `text` / `score`（原始版另含 `time` / `cid`），不含用户名或账号信息；
+`data/douban/.storage_state.json` 含登录 cookie，被 `.gitignore` 最后一条显式排除，绝不入库。
+
+### 12.3 任务三：下载 Embedding 模型
+
+```bash
+# 国内网络先设镜像（PowerShell: $env:HF_ENDPOINT="https://hf-mirror.com"）
+export HF_ENDPOINT=https://hf-mirror.com
+hf download BAAI/bge-small-zh-v1.5 --local-dir models/bge-small-zh-v1.5
+python main.py embed -c configs/douban.yaml "测试"
+```
+
+也可直接 `python main.py prepare -c configs/douban.yaml`，由 `encoder.py` 下载到 `models/`。
+验收：输出指定维度的单位向量，L2 范数 ≈ 1。
+
+### 12.4 任务四：训练回归
+
+```bash
+python main.py train -c configs/douban.yaml
+python webapp.py -c configs/douban.yaml
+```
+
+`artifacts/douban/metrics.json` 记录 R²、RMSE、MAE、Pearson、Spearman 与最佳参数。
+本次的测试集逐条预测（40 条，`text` / `y_true` / `y_pred`）随 PR 提交在
+`artifacts/douban/test_predictions.csv`，可脱离模型直接核对指标；`embeddings.npz`、
+`model.joblib` 等二进制产物仍不入库。
+
+### 12.5 任务五：词云面板（中文分词）
+
+```bash
+python wordcloud_utils.py --data data/douban/痴迷.jsonl --out artifacts/wordcloud
+python webapp.py -c configs/douban.yaml   # 点右上角「影评词云」
+```
+
+jieba 精确模式切词，加入影片专名自定义词典，过滤单字/数字/标点/停用词；
+wordcloud **强制指定中文字体**（`WORDCLOUD_FONT` 可覆盖；Windows 优先微软雅黑 `msyh.ttc`，缺失回退黑体 `simhei.ttf`），
+否则满屏方框。排版上固定 95% 横排、`relative_scaling=0.45` 让字号梯度更平缓、并裁掉色板最浅的一段，
+避免高频词一家独大、浅色词在米白底上发灰。默认好评 `score >= 4`、差评 `score <= 2`，差评样本不足 30 条时自动放宽到 3 星并在面板上标注。
+接口 `GET /api/wordcloud` 返回两张 base64 PNG 与 Top 词，`?refresh=1` 可强制重画。
+
+### 12.6 本次运行记录（2026-11-09）
+
+| 项目 | 结果 |
+| --- | --- |
+| 登录态验收 | 短评页返回 20 条、未被拦截；`dbcl2` 登录 cookie 存在 |
+| 抓取 | **394 条**（≥200）；星级分布 1:26 / 2:41 / 3:102 / 4:158 / 5:67 |
+| 数据抽查 | 固定种子抽 10 条：文本通顺、星级与语义相符、无空文本；2 条文本重复但 cid 不同，已按 cid 去重 |
+| Embedding | `bge-small-zh-v1.5` 本地目录，512 维；`python main.py embed "测试"` → L2 范数 **1.000000** |
+| 划分 | train 315 / validation 39 / test 40（8:1:1 随机切分） |
+| 最佳参数 | `Ridge(alpha=10)`（验证集 RMSE 0.9091） |
+| 测试集指标 | **R² 0.0909｜RMSE 1.2001｜MAE 0.9805｜Pearson 0.5382｜Spearman 0.5322** |
+| 词云 | 好评 225 条 / 差评 67 条；jieba + 419 个停用词；字体 `msyh.ttc`；浏览器面板实测正常（1840×960） |
+
+**一句话评价**：模型能大致排出评分高低（Pearson 0.54、Spearman 0.53），但绝对分值平均差近 1 星（MAE 0.98）、
+R² 只有 0.09，属于「排序方向可用、精确打分不可用」的弱模型。瓶颈主要在数据：394 条样本偏少、评分集中在 3~4 星
+（3 星 102 条、4 星 158 条），且短评多为几十字的口语化吐槽，语义信号本身有限；换更长影评或更大样本会更有意义。
+
+复现顺序：
+
+```bash
+python scripts/douban_crawler.py login
+python scripts/douban_crawler.py crawl --delay 3 --max-pages 25
+python main.py embed "测试"
+python main.py train -c configs/douban.yaml
+python wordcloud_utils.py --data data/douban/痴迷.jsonl --out artifacts/wordcloud
+python webapp.py -c configs/douban.yaml
+```
+

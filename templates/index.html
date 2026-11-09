@@ -223,6 +223,64 @@
     opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 60;
   }
   #toast.show { opacity: 1; }
+
+  /* ---------- 词云面板（任务五） ---------- */
+  .btn-mini {
+    border: 1px solid var(--border); border-radius: 9px; background: #fff;
+    padding: 6px 14px; font: inherit; font-size: 13.5px; font-weight: 600;
+    color: #374151; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+  .overlay {
+    position: fixed; inset: 0; z-index: 80; background: rgba(17,24,39,.42);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .cloud-panel {
+    width: min(1180px, 100%); max-height: 92vh; overflow: auto;
+    background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+    padding: 20px 24px 24px; box-shadow: 0 24px 70px rgba(17,24,39,.28);
+  }
+  .cloud-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .cloud-head h2 { margin: 0; font-size: 19px; }
+  .cloud-head .spacer { flex: 1; }
+  .cloud-sub-title { font-size: 12.5px; color: #9ca3af; margin: -2px 0 12px; letter-spacing: .2px; }
+  .cloud-meta { font-size: 12.5px; color: #b45309; margin: 0 0 10px; }
+  .cloud-stats { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 16px; }
+  .cloud-stats .stat {
+    display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%;
+    background: #f8f7f3; border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 10px; font-size: 12.5px; line-height: 1.25;
+  }
+  .cloud-stats .k { color: #9ca3af; flex-shrink: 0; }
+  .cloud-stats .v {
+    color: #111827; font-weight: 600; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cloud-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .cloud-grid { grid-template-columns: 1fr; } }
+  .cloud-box {
+    border: 1px solid var(--border); border-radius: 13px;
+    padding: 14px 16px 16px; background: #fcfbf8;
+  }
+  .cloud-box h3 { display: flex; align-items: center; gap: 7px; font-size: 15px; margin-bottom: 5px; }
+  .cloud-box h3 .cd { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cloud-box .sub { font-size: 12.5px; color: #6b7280; margin-bottom: 11px; min-height: 17px; font-variant-numeric: tabular-nums; }
+  .cloud-box img {
+    width: 100%; height: auto; display: block; border-radius: 9px;
+    background: #fcfbf8; border: 1px solid #efece3;
+  }
+  .cloud-box .fallback {
+    height: 220px; display: flex; align-items: center; justify-content: center;
+    color: #6b7280; font-size: 14px; text-align: center; padding: 20px; line-height: 1.7;
+  }
+  .cloud-words { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+  .cloud-words .wc-title { font-size: 12px; color: #9ca3af; margin-right: 2px; }
+  .cloud-words .wc-tag {
+    display: inline-flex; align-items: baseline; gap: 4px;
+    background: #f1f5f9; border-radius: 6px; padding: 3px 8px;
+    font-size: 12px; color: #334155; line-height: 1.3;
+  }
+  .cloud-words .wc-tag b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -233,6 +291,7 @@
     <h1 id="app-title">文本分析工作台</h1>
   </div>
   <div class="badges">
+    <button class="btn-mini" id="btn-cloud" type="button">影评词云</button>
     <span class="badge" id="badge-model">…</span>
     <span class="badge hidden" id="badge-metric"></span>
     <span class="badge hidden" id="badge-device"></span>
@@ -317,6 +376,36 @@
     </section>
   </div>
 </main>
+
+<div id="cloud-overlay" class="overlay hidden" role="dialog" aria-label="影评词云">
+  <div class="cloud-panel">
+    <div class="cloud-head">
+      <h2>影评词云 · 好评 vs 差评</h2>
+      <span class="spacer"></span>
+      <button class="btn-mini" id="btn-cloud-refresh" type="button">重新生成</button>
+      <button class="btn-mini" id="btn-cloud-close" type="button">关闭</button>
+    </div>
+    <p class="cloud-sub-title">jieba 分词 · 停用词过滤 · 按星级分组</p>
+    <div class="cloud-stats" id="cloud-stats"></div>
+    <p class="cloud-meta hidden" id="cloud-meta"></p>
+    <div class="cloud-grid">
+      <div class="cloud-box">
+        <h3 style="color:#0f766e"><i class="cd" style="background:#0f766e"></i>好评词云</h3>
+        <div class="sub" id="cloud-good-sub">—</div>
+        <div id="cloud-good-fallback" class="fallback">生成中…</div>
+        <img id="cloud-good" class="hidden" alt="好评词云">
+        <div class="cloud-words" id="cloud-good-words"></div>
+      </div>
+      <div class="cloud-box">
+        <h3 style="color:#be123c"><i class="cd" style="background:#be123c"></i>差评词云</h3>
+        <div class="sub" id="cloud-bad-sub">—</div>
+        <div id="cloud-bad-fallback" class="fallback">生成中…</div>
+        <img id="cloud-bad" class="hidden" alt="差评词云">
+        <div class="cloud-words" id="cloud-bad-words"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="tooltip" class="tooltip hidden"></div>
 <div id="toast"></div>
@@ -868,6 +957,126 @@ async function pickSample(i) {
     flash(e.message);
   }
 }
+
+/* ---------- 词云面板（任务五） ---------- */
+let cloudBusy = false;
+const fmtNum = (n) => Number(n).toLocaleString("zh-CN");
+
+function openCloud(force) {
+  if (cloudBusy) return;
+  cloudBusy = true;
+  $("cloud-overlay").classList.remove("hidden");
+  $("cloud-stats").replaceChildren();
+  $("cloud-meta").textContent = "正在分词并生成词云…";
+  $("cloud-meta").classList.remove("hidden");
+  api("/api/wordcloud" + (force ? "?refresh=1" : ""))
+    .then(renderCloud)
+    .catch((e) => { $("cloud-meta").textContent = "词云加载失败：" + e.message; })
+    .finally(() => { cloudBusy = false; });
+}
+
+function statChip(key, value, title) {
+  const chip = document.createElement("span");
+  chip.className = "stat";
+  if (title) chip.title = title;
+  const k = document.createElement("span");
+  k.className = "k";
+  k.textContent = key;
+  const v = document.createElement("span");
+  v.className = "v";
+  v.textContent = value;
+  chip.append(k, v);
+  return chip;
+}
+
+function renderStats(data) {
+  const host = $("cloud-stats");
+  host.replaceChildren();
+  if (!data.available) return;
+  const t = data.thresholds || {};
+  const items = [
+    ["数据", data.source_name || "—", data.source || ""],
+    ["样本", fmtNum(data.n_reviews) + " 条", ""],
+    ["分词", "jieba · " + data.stopwords + " 停用词", ""],
+    ["字体", data.font_name || "—", data.font || ""],
+    ["好评", t.good || "—", ""],
+    ["差评", t.bad || "—", ""],
+  ];
+  for (const [key, value, title] of items) {
+    if (value) host.append(statChip(key, value, title));
+  }
+}
+
+function renderTags(host, words) {
+  host.replaceChildren();
+  if (!words || !words.length) return;
+  const label = document.createElement("span");
+  label.className = "wc-title";
+  label.textContent = "高频词";
+  host.append(label);
+  for (const item of words.slice(0, 10)) {
+    const tag = document.createElement("span");
+    tag.className = "wc-tag";
+    const word = document.createElement("span");
+    word.textContent = item.word;
+    const count = document.createElement("b");
+    count.textContent = String(item.count);
+    tag.append(word, count);
+    host.append(tag);
+  }
+}
+
+function renderCloud(data) {
+  renderStats(data);
+  const meta = $("cloud-meta");
+  if (!data.available) {
+    meta.textContent = "暂时无法生成词云：" + (data.reason || "未知原因");
+    meta.classList.remove("hidden");
+    for (const key of ["good", "bad"]) {
+      $("cloud-" + key + "-sub").textContent = "—";
+      $("cloud-" + key + "-fallback").textContent = "暂无可用数据";
+      $("cloud-" + key + "-fallback").classList.remove("hidden");
+      $("cloud-" + key).classList.add("hidden");
+      $("cloud-" + key + "-words").replaceChildren();
+    }
+    return;
+  }
+  const t = data.thresholds || {};
+  if (t.relaxed) {
+    meta.textContent = "差评样本偏少，已自动放宽到 3 星";
+    meta.classList.remove("hidden");
+  } else {
+    meta.textContent = "";
+    meta.classList.add("hidden");
+  }
+  for (const key of ["good", "bad"]) {
+    const g = data[key];
+    const img = $("cloud-" + key);
+    const fallback = $("cloud-" + key + "-fallback");
+    $("cloud-" + key + "-sub").textContent =
+      fmtNum(g.n_reviews) + " 条评论 · " + fmtNum(g.n_tokens) + " 个有效词";
+    if (g.image) {
+      img.src = g.image;
+      img.classList.remove("hidden");
+      fallback.classList.add("hidden");
+    } else {
+      fallback.textContent = "这组评论太少，词频不足，无法成图";
+      fallback.classList.remove("hidden");
+      img.classList.add("hidden");
+    }
+    renderTags($("cloud-" + key + "-words"), g.top_words);
+  }
+}
+
+function closeCloud() { $("cloud-overlay").classList.add("hidden"); }
+
+$("btn-cloud").addEventListener("click", () => openCloud(false));
+$("btn-cloud-refresh").addEventListener("click", () => openCloud(true));
+$("btn-cloud-close").addEventListener("click", closeCloud);
+$("cloud-overlay").addEventListener("click", (e) => {
+  if (e.target === $("cloud-overlay")) closeCloud();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCloud(); });
 
 init();
 </script>

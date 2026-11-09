@@ -15,6 +15,7 @@
     GET  /api/sample?i= 散点下标 → 该样本的向量、模型输出与原文
     GET  /api/hist      测试集全量的模型输出分布
     GET  /api/space     t-SNE 投影；首次计算几十秒，结果缓存到 artifacts/
+    GET  /api/wordcloud 好评 / 差评中文词云（jieba + 停用词 + 中文字体），?refresh=1 强制重画
 """
 
 from __future__ import annotations
@@ -44,7 +45,9 @@ app.config.setdefault("CONFIG_PATH", "configs/classification.yaml")
 
 _state_lock = threading.Lock()
 _space_lock = threading.Lock()
+_cloud_lock = threading.Lock()
 _state: dict[str, Any] = {}
+_cloud_cache: dict[str, Any] = {}
 
 
 def get_state() -> dict[str, Any]:
@@ -426,6 +429,29 @@ def api_space() -> Any:
             "preds": preds,
         }
     )
+
+
+@app.get("/api/wordcloud")
+def api_wordcloud() -> Any:
+    """好评 / 差评两张中文词云。
+
+    只读影评数据，不依赖模型产物，因此训练前后都能打开面板；
+    生成结果按配置文件路径缓存在进程内，?refresh=1 可强制重画。
+    """
+    from wordcloud_utils import build_payload, resolve_review_path
+
+    key = str(app.config["CONFIG_PATH"])
+    force = request.args.get("refresh") == "1"
+    with _cloud_lock:
+        if not force and key in _cloud_cache:
+            return jsonify(_cloud_cache[key])
+        try:
+            path = resolve_review_path(key)
+            payload = build_payload(path)
+        except (FileNotFoundError, KeyError, ValueError, OSError, RuntimeError) as exc:
+            return jsonify({"available": False, "reason": str(exc)})
+        _cloud_cache[key] = payload
+    return jsonify(payload)
 
 
 def main() -> None:

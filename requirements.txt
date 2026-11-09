@@ -14,6 +14,12 @@ tqdm>=4.66
 # 本地网页工作台 webapp.py
 flask>=3.0
 
+# 课后作业：豆瓣短评爬取、中文分词与词云
+playwright>=1.40
+jieba>=0.42
+wordcloud>=1.9
+pillow>=10.0
+
 # 开发工具（代码检查，不影响运行）
 ruff>=0.6
 mypy>=1.10
